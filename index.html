@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Blinn-Phong Shading</title>
+		<style>
+			body { margin: 0; }
+		</style>
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "./node_modules/three/build/three.module.js",
+					"three/examples/jsm/controls/OrbitControls":"./node_modules/three/examples/jsm/controls/OrbitControls.js"
+				}
+			}
+		</script>
+	</head>
+	<body>
+		<script type="module">
+			import * as THREE from 'three';
+			import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+
+			const scene = new THREE.Scene();
+			const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+
+			const renderer = new THREE.WebGLRenderer();
+			renderer.setSize( window.innerWidth, window.innerHeight );
+			document.body.appendChild( renderer.domElement );
+
+            var lightGeometry = new THREE.SphereGeometry(0.1, 32, 32);
+            var lightMaterial = new THREE.MeshBasicMaterial({color: 0xff8010});
+            var light = new THREE.Mesh(lightGeometry, lightMaterial);
+            light.name = "light";
+            light.position.set(2, 2, 2);
+            scene.add(light);
+
+            var col = new THREE.Vector3(79., 0., 0.);
+            
+            var torusGeometry = new THREE.TorusKnotGeometry(1, 0.3, 100, 32);
+
+			const geometry = new THREE.SphereGeometry( 0.6, 30, 30);
+			const material = new THREE.ShaderMaterial( { 
+				vertexShader: `
+                uniform vec3 u_color;
+                uniform vec3 u_lightPosition;
+                uniform float u_diffuseReflect;
+                uniform vec3 u_camera;
+
+                out vec3 color;
+                out vec3 L;
+                out vec3 N;
+                out vec3 R;
+                out vec3 E;
+                out vec3 H;
+
+				void main(){
+
+                    L = normalize(mat3(modelViewMatrix) * (u_lightPosition - position));
+                    N = normalize(normalMatrix * normal);
+                    R = normalize(-reflect(L, N));
+                    E = normalize(mat3(modelViewMatrix) * (u_camera - position));
+
+                    H = (E + L) / (length(E + L));
+
+                    color = normalize(u_color);
+
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+		
+				}	
+				`,
+				fragmentShader: `
+                uniform float u_ambientReflect;
+                uniform float u_diffuseReflect;
+                uniform float u_specularReflect;
+                uniform vec3 u_lightColor;
+
+                in vec3 color;
+                in vec3 L;
+                in vec3 N;
+                in vec3 R;
+                in vec3 E;
+                in vec3 H;
+
+				void main(){
+                    
+                    vec3 ambient = color * u_ambientReflect;
+                    vec3 diffuse = color * u_diffuseReflect * max(0.0, dot(N, L));
+                    //vec3 specular = normalize(u_lightColor) * u_specularReflect * pow(max(0.0, dot(R, E)), 5.);
+                    vec3 specular = normalize(u_lightColor) * u_specularReflect * pow(max(0.0, dot(H, N)), 30.); 
+
+                    gl_FragColor = vec4(ambient + diffuse + specular, 1.);
+					
+				}
+				`,
+				uniforms: {u_color: {value: col},
+                           u_camera: {value: camera.position},
+                           u_lightPosition: {value: light.position},
+                           u_lightColor: {value: new THREE.Vector3(1., 1., 1.)},
+                           u_ambientReflect: {value: .1},
+                           u_diffuseReflect: {value: 1.},
+                           u_specularReflect: {value: 2.}}
+			} );
+			const sphere = new THREE.Mesh( geometry, material );
+            const sphere1 = new THREE.Mesh( geometry, material );
+            const torus = new THREE.Mesh ( torusGeometry, material );
+            sphere.position.set(-2.5, 0, 0);
+            sphere1.position.set(2.5, 0, 0);
+            torus.position.set(0, -1, 0);
+
+			scene.add( sphere );
+            scene.add( sphere1 );
+            scene.add( torus );
+
+
+			camera.position.z = 5;
+            
+			let controls = new OrbitControls(camera, renderer.domElement);
+			controls.rotateSpeed = 1.0;
+			controls.zoomSpeed = 1.2;
+			controls.enableZoom = true;
+			controls.keys = {LEFT: "KeyA", UP:"KeyW", RIGHT: "KeyD", BOTTOM:"KeyS"};
+			controls.minDistance = 0.1;
+			controls.maxDistance = 9;
+            
+
+            document.addEventListener('keydown', event => {
+                if (event.key == 'w') {
+                    scene.traverse(function(child){
+                        if (child.name == "light") {
+                            child.position.y += 0.1;
+                        }
+                    })     
+                }
+                else if (event.key == 's') {
+                    scene.traverse(function(child){
+                        if (child.name == "light") {
+                            child.position.y -= 0.1;
+                        }
+                    })     
+                }
+                else if (event.key == 'a') {
+                    scene.traverse(function(child){
+                        if (child.name == "light") {
+                            child.position.x -= 0.1;
+                        }
+                    })     
+                }
+                else if (event.key == 'd') {
+                    scene.traverse(function(child){
+                        if (child.name == "light") {
+                            child.position.x += 0.1;
+                        }
+                    })     
+                }
+                else if (event.key == 'ArrowUp') {
+                    scene.traverse(function(child){
+                        if (child.name == "light") {
+                            child.position.z -= 0.1;
+                        }
+                    })     
+                }
+                else if (event.key == 'ArrowDown') {
+                    scene.traverse(function(child){
+                        if (child.name == "light") {
+                            child.position.z += 0.1;
+                        }
+                    })     
+                }
+            })
+
+			function animate() {
+				requestAnimationFrame( animate );
+
+				renderer.render( scene, camera );
+			}
+
+			animate();
+		</script>
+		
+	</body>
+</html>
